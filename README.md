@@ -1,4 +1,4 @@
-# Arcana
+# Arcana - https://arcana-psi-roan.vercel.app/
 
 **The hidden knowledge of Arc, unlocked with USDC.**
 
