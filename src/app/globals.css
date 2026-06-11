@@ -1,0 +1,64 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+html,
+body {
+  background-color: theme(colors.ink);
+  color: theme(colors.text);
+}
+
+body {
+  font-feature-settings: "ss01";
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Subtle arcane backdrop: faint radial glow, no noise */
+.backdrop-arcane {
+  background:
+    radial-gradient(60% 50% at 50% -10%, rgba(167, 139, 250, 0.12), transparent 70%),
+    radial-gradient(40% 40% at 90% 10%, rgba(103, 232, 249, 0.06), transparent 70%);
+}
+
+.prose-answer p {
+  margin-bottom: 0.85rem;
+  line-height: 1.7;
+}
+.prose-answer code {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85em;
+  background: theme(colors.raised);
+  border: 1px solid theme(colors.border);
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+}
+.prose-answer pre {
+  background: theme(colors.raised);
+  border: 1px solid theme(colors.border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  overflow-x: auto;
+  margin-bottom: 0.85rem;
+}
+.prose-answer pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

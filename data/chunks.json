@@ -1,0 +1,92 @@
+[
+  {
+    "id": "arc-overview",
+    "title": "What Arc is",
+    "url": "https://docs.arc.io/arc-chain",
+    "text": "Arc is an open Layer-1 blockchain from Circle, purpose-built for stablecoin finance, payments, FX, and programmable money. It is EVM compatible and currently available on testnet only. Its defining trait is that USDC is the native gas token instead of a volatile asset, which makes fees predictable and dollar-denominated."
+  },
+  {
+    "id": "usdc-gas",
+    "title": "USDC is the gas token",
+    "url": "https://docs.arc.io/arc/references/gas-and-fees",
+    "text": "On Arc, transaction fees (gas) are paid in USDC, not ETH. Applications must not check an ETH balance to decide if a wallet can transact, must not request ETH from a faucet, and must not label the native token as ETH. Native gas USDC is tracked at 18 decimals."
+  },
+  {
+    "id": "decimals",
+    "title": "Native USDC vs ERC-20 USDC decimals",
+    "url": "https://docs.arc.io/arc/references/gas-and-fees",
+    "text": "Two USDC surfaces exist on Arc. Native gas USDC uses 18 decimals and is used to pay gas. ERC-20 USDC (the token contract) uses 6 decimals and is used for transfers, approvals, and contract integrations. A common bug is using parseEther (18 decimals) for ERC-20 USDC; use parseUnits(amount, 6) instead."
+  },
+  {
+    "id": "network-details",
+    "title": "Arc Testnet network details",
+    "url": "https://docs.arc.io/arc/references/connect-to-arc",
+    "text": "Arc Testnet chain ID is 5042002 (hex 0x4CEF52). RPC endpoint is https://rpc.testnet.arc.network and WebSocket is wss://rpc.testnet.arc.network. The block explorer is https://testnet.arcscan.app. The currency symbol shown in wallets should be USDC. The CCTP domain for Arc is 36."
+  },
+  {
+    "id": "add-wallet",
+    "title": "Add Arc Testnet to a wallet",
+    "url": "https://docs.arc.io/arc/references/connect-to-arc",
+    "text": "To add Arc Testnet manually: Network Name = Arc Testnet, RPC URL = https://rpc.testnet.arc.network, Chain ID = 5042002, Currency Symbol = USDC, Block Explorer URL = https://testnet.arcscan.app. Get testnet USDC from the Circle faucet at https://faucet.circle.com."
+  },
+  {
+    "id": "contract-addresses",
+    "title": "Key contract addresses on Arc Testnet",
+    "url": "https://docs.arc.io/arc/references/contract-addresses",
+    "text": "On Arc Testnet, ERC-20 USDC is at 0x3600000000000000000000000000000000000000 and EURC at 0x3600000000000000000000000000000000000001. CCTP v2 TokenMessengerV2 is 0x8FE6B999Dc680CcFDD5Bf7EB0974218be2542DAA. Multicall3 is 0xcA11bde05977b3631167028862bE2a173976CA11. Always re-verify addresses on the official Contract Addresses page before using them."
+  },
+  {
+    "id": "evm-compat",
+    "title": "EVM compatibility and tooling",
+    "url": "https://docs.arc.io/arc/references/evm-compatibility",
+    "text": "Arc is EVM compatible, so standard Solidity contracts deploy with familiar tools like Hardhat, Foundry, Viem, and Ethers. Check the EVM Compatibility page for Arc-specific differences. Because of deterministic finality, waiting for many confirmations like on Ethereum is usually unnecessary."
+  },
+  {
+    "id": "finality",
+    "title": "Deterministic sub-second finality",
+    "url": "https://docs.arc.io/arc/concepts/deterministic-finality",
+    "text": "Arc uses Circle's Malachite BFT consensus engine to provide deterministic, sub-second finality. Transactions are final in under a second, so applications do not need to wait for multiple block confirmations before treating a transaction as settled."
+  },
+  {
+    "id": "appkit",
+    "title": "Circle App Kit",
+    "url": "https://docs.arc.io/app-kit",
+    "text": "Circle App Kit wraps CCTP and provides Bridge (move USDC across chains), Swap (same-chain or cross-chain), Send (wallet-to-wallet), and Unified Balance (combine USDC from multiple chains into one spendable balance). Use App Kit when users should spend USDC on Arc even if their USDC is on another chain, or when you want a faster MVP than integrating CCTP manually."
+  },
+  {
+    "id": "unified-balance",
+    "title": "Unified Balance",
+    "url": "https://docs.arc.io/app-kit/unified-balance",
+    "text": "Unified Balance lets a user see USDC held across multiple chains as a single spendable balance and pay on Arc from it. It is powered by App Kit. Use it for checkout-style flows where the user should not have to manually bridge before paying."
+  },
+  {
+    "id": "deploy",
+    "title": "Deploying contracts on Arc",
+    "url": "https://docs.arc.io/arc/tutorials/deploy-on-arc",
+    "text": "Deploy Solidity contracts to Arc Testnet using Foundry or Hardhat with chain ID 5042002 and RPC https://rpc.testnet.arc.network. The deployer wallet needs native gas USDC. Never put private keys in source code or frontend code; use environment variables with a testnet-only key. After deploying, confirm the contract on the explorer."
+  },
+  {
+    "id": "faucet",
+    "title": "Getting testnet USDC",
+    "url": "https://faucet.circle.com",
+    "text": "Use the Circle faucet at https://faucet.circle.com to receive testnet USDC. You need native gas USDC to pay for transactions on Arc Testnet. If a wallet has ERC-20 USDC but transactions still fail for gas, it likely lacks native gas USDC."
+  },
+  {
+    "id": "agentic",
+    "title": "Agentic economy and AI agents",
+    "url": "https://docs.arc.io/build/agentic-economy",
+    "text": "Arc supports an agentic economy where AI agents can be registered and can transact using USDC. The ERC-8183 job standard lets you create jobs, escrow funds, submit deliverables, and settle payment to agents on-chain. This makes Arc suitable for AI agent marketplaces and autonomous payment flows."
+  },
+  {
+    "id": "cctp",
+    "title": "CCTP cross-chain transfers",
+    "url": "https://docs.arc.io/app-kit/bridge",
+    "text": "CCTP (Cross-Chain Transfer Protocol) moves native USDC between supported chains by burning on the source chain and minting on the destination. App Kit's Bridge feature wraps CCTP. Arc's CCTP domain is 36. Check the Supported Blockchains page before building bridge flows, since the supported-chain list can change."
+  },
+  {
+    "id": "common-mistakes",
+    "title": "Common Arc integration mistakes",
+    "url": "https://docs.arc.io/arc/references/evm-compatibility",
+    "text": "Frequent mistakes: assuming gas is paid in ETH, confusing native gas USDC (18 decimals) with ERC-20 USDC (6 decimals), guessing contract addresses instead of verifying them, displaying the native symbol as ETH, and leaking private or API keys into client code. Native USDC transfers may also not appear as standard ERC-20 Transfer events."
+  }
+]
