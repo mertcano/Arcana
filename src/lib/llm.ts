@@ -1,12 +1,14 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { Retrieved } from "@/lib/retrieval";
 
-const MODEL = process.env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-latest";
+// OpenAI-compatible chat endpoint. Defaults to Groq's free API.
+// Works with any OpenAI-compatible provider by changing LLM_BASE_URL/LLM_MODEL.
+const BASE_URL = process.env.LLM_BASE_URL ?? "https://api.groq.com/openai/v1";
+const MODEL = process.env.LLM_MODEL ?? "llama-3.3-70b-versatile";
 
-function client() {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
-  return new Anthropic({ apiKey });
+function apiKey(): string {
+  const key = process.env.LLM_API_KEY;
+  if (!key) throw new Error("LLM_API_KEY is not set");
+  return key;
 }
 
 function buildContext(items: Retrieved[]): string {
@@ -35,23 +37,32 @@ export async function answer(
     ? "This is a DEEP answer: be thorough, include relevant code/config and edge cases."
     : "This is a FREE answer: keep it brief (a few sentences).";
 
-  const msg = await client().messages.create({
-    model: MODEL,
-    max_tokens: deep ? 1200 : 450,
-    system: SYSTEM,
-    messages: [
-      {
-        role: "user",
-        content: `${depth}\n\nSOURCES:\n${context}\n\nQUESTION: ${question}`,
-      },
-    ],
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey()}`,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      max_tokens: deep ? 1200 : 450,
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: SYSTEM },
+        {
+          role: "user",
+          content: `${depth}\n\nSOURCES:\n${context}\n\nQUESTION: ${question}`,
+        },
+      ],
+    }),
   });
 
-  const text = msg.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    throw new Error(`LLM request failed (${res.status}): ${detail.slice(0, 200)}`);
+  }
 
+  const data = await res.json();
+  const text: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
   return text || "I could not generate an answer. Please try rephrasing.";
 }

@@ -1,12 +1,7 @@
 import crypto from "crypto";
-import { decodeEventLog, getAddress } from "viem";
-import { erc20Abi } from "viem";
+import { decodeEventLog, decodeFunctionData, erc20Abi, getAddress, parseUnits } from "viem";
 import { publicClient } from "@/lib/viemClient";
-import {
-  USDC_ADDRESS,
-  TREASURY_ADDRESS,
-  PRICE_USDC,
-} from "@/lib/constants";
+import { USDC_ADDRESS, TREASURY_ADDRESS, PRICE_USDC } from "@/lib/constants";
 import { toUsdcUnits } from "@/lib/usdc";
 
 const SECRET = process.env.UNLOCK_SECRET ?? "dev-only-insecure-secret";
@@ -65,31 +60,54 @@ export async function verifyPayment(
     return { ok: false, reason: "The payment transaction failed on-chain." };
   }
 
-  const required = toUsdcUnits(PRICE_USDC);
   const treasury = getAddress(TREASURY_ADDRESS);
   const usdc = getAddress(USDC_ADDRESS);
+  const requiredErc20 = toUsdcUnits(PRICE_USDC); // 6 decimals
+  const requiredNative = parseUnits(PRICE_USDC, 18); // native USDC = 18 decimals
 
   let paid = false;
-  for (const log of receipt.logs) {
-    if (getAddress(log.address) !== usdc) continue;
-    try {
-      const ev = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
-      if (ev.eventName !== "Transfer") continue;
-      const to = getAddress(ev.args.to as `0x${string}`);
-      const value = ev.args.value as bigint;
-      if (to === treasury && value >= required) {
-        paid = true;
-        break;
+
+  // (1) Decode the transaction calldata: an ERC-20 transfer(to, value) to USDC.
+  try {
+    const tx = await publicClient.getTransaction({ hash: txHash });
+    if (tx.to && getAddress(tx.to) === usdc && tx.input && tx.input !== "0x") {
+      const decoded = decodeFunctionData({ abi: erc20Abi, data: tx.input });
+      if (decoded.functionName === "transfer") {
+        const [to, value] = decoded.args as [`0x${string}`, bigint];
+        if (getAddress(to) === treasury && value >= requiredErc20) paid = true;
       }
-    } catch {
-      // not a Transfer event; skip
+    }
+    // (3) Or a plain native USDC value transfer straight to the treasury.
+    if (!paid && tx.to && getAddress(tx.to) === treasury && tx.value >= requiredNative) {
+      paid = true;
+    }
+  } catch {
+    // fall through to log scan
+  }
+
+  // (2) Fallback: scan for a standard ERC-20 Transfer event to the treasury.
+  if (!paid) {
+    for (const log of receipt.logs) {
+      if (getAddress(log.address) !== usdc) continue;
+      try {
+        const ev = decodeEventLog({ abi: erc20Abi, data: log.data, topics: log.topics });
+        if (ev.eventName !== "Transfer") continue;
+        const to = getAddress(ev.args.to as `0x${string}`);
+        const value = ev.args.value as bigint;
+        if (to === treasury && value >= requiredErc20) {
+          paid = true;
+          break;
+        }
+      } catch {
+        // not a Transfer event; skip
+      }
     }
   }
 
   if (!paid) {
     return {
       ok: false,
-      reason: `No USDC transfer of at least ${PRICE_USDC} to the treasury was found in this transaction.`,
+      reason: `No USDC payment of at least ${PRICE_USDC} to the treasury was found in this transaction.`,
     };
   }
 

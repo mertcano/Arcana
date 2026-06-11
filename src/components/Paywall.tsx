@@ -1,15 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import {
-  useAccount,
-  useReadContract,
-  useWriteContract,
-  useWaitForTransactionReceipt,
-} from "wagmi";
+import { useCallback, useEffect, useState } from "react";
+import { useAccount } from "wagmi";
+import { parseUnits, formatUnits, toHex } from "viem";
 import { WalletButton } from "./WalletButton";
 import { NetworkGuard } from "./NetworkGuard";
-import { usdcAbi, usdcAddress, formatUsdc, toUsdcUnits } from "@/lib/usdc";
 import {
   ARC_TESTNET_ID,
   ARC_FAUCET,
@@ -23,77 +18,99 @@ interface Props {
   onClose: () => void;
 }
 
-type Phase = "idle" | "pending" | "verifying" | "error";
+type Phase = "idle" | "sending" | "verifying" | "error";
+
+// Minimal EIP-1193 provider shape.
+type Eip1193 = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown> };
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export function Paywall({ onUnlock, onClose }: Props) {
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, chainId, connector } = useAccount();
   const onArc = chainId === ARC_TESTNET_ID;
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
 
-  const { data: balance } = useReadContract({
-    address: usdcAddress,
-    abi: usdcAbi,
-    functionName: "balanceOf",
-    args: address ? [address] : undefined,
-    query: { enabled: Boolean(address) && onArc },
-  });
+  // Native USDC balance (18 decimals), read server-side. null = unknown.
+  const [balanceRaw, setBalanceRaw] = useState<bigint | null>(null);
 
-  const required = toUsdcUnits(PRICE_USDC);
-  const hasFunds = typeof balance === "bigint" && balance >= required;
+  const refreshBalance = useCallback(async () => {
+    if (!address || !onArc) return;
+    try {
+      const res = await fetch(`/api/balance?address=${address}`);
+      const data = await res.json();
+      if (res.ok && typeof data.raw === "string") setBalanceRaw(BigInt(data.raw));
+      else setBalanceRaw(null);
+    } catch {
+      setBalanceRaw(null);
+    }
+  }, [address, onArc]);
 
-  const { writeContract, data: txHash, isPending: isSigning, reset } =
-    useWriteContract();
-  const { data: receipt, isLoading: isMining } = useWaitForTransactionReceipt({
-    hash: txHash,
-  });
-
-  function pay() {
-    setError(null);
-    setPhase("pending");
-    writeContract(
-      {
-        address: usdcAddress,
-        abi: usdcAbi,
-        functionName: "transfer",
-        args: [TREASURY_ADDRESS, required],
-      },
-      {
-        onError: (e) => {
-          setPhase("error");
-          setError(e.message.split("\n")[0] ?? "Payment was rejected.");
-        },
-      },
-    );
-  }
-
-  // Once the tx is mined, verify it server-side.
   useEffect(() => {
-    if (!receipt || !txHash || phase === "verifying") return;
+    void refreshBalance();
+  }, [refreshBalance]);
+
+  const required = parseUnits(PRICE_USDC, 18); // native USDC = 18 decimals
+  const knownInsufficient = balanceRaw !== null && balanceRaw < required;
+
+  async function verifyLoop(hash: string) {
     setPhase("verifying");
-    (async () => {
+    for (let i = 0; i < 25; i++) {
       try {
         const res = await fetch("/api/verify-payment", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ txHash }),
+          body: JSON.stringify({ txHash: hash }),
         });
         const data = await res.json();
-        if (res.ok && data.ok && data.unlockToken) {
-          onUnlock(data.unlockToken, txHash);
-        } else {
-          setPhase("error");
-          setError(data.reason ?? "Could not verify the payment.");
+        if (res.status === 202) {
+          await sleep(1500); // still pending; Arc finality is sub-second
+          continue;
         }
-      } catch {
+        if (res.ok && data.ok && data.unlockToken) {
+          onUnlock(data.unlockToken, hash);
+          return;
+        }
         setPhase("error");
-        setError("Network error while verifying the payment.");
+        setError(data.reason ?? "Could not verify the payment.");
+        return;
+      } catch {
+        await sleep(1500);
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [receipt, txHash]);
+    }
+    setPhase("error");
+    setError("Timed out waiting for the payment to confirm.");
+  }
 
-  const busy = isSigning || isMining || phase === "verifying";
+  async function pay() {
+    setError(null);
+    setTxHash(null);
+    if (!address || !connector) return;
+    setPhase("sending");
+    try {
+      const provider = (await connector.getProvider()) as Eip1193;
+      // Let the wallet handle gas/fees. A native USDC value transfer to the treasury.
+      const hash = (await provider.request({
+        method: "eth_sendTransaction",
+        params: [
+          {
+            from: address,
+            to: TREASURY_ADDRESS,
+            value: toHex(required),
+          },
+        ],
+      })) as string;
+      setTxHash(hash);
+      await verifyLoop(hash);
+    } catch (e) {
+      setPhase("error");
+      const msg = e instanceof Error ? e.message.split("\n")[0] : "Payment was rejected.";
+      setError(msg);
+    }
+  }
+
+  const busy = phase === "sending" || phase === "verifying";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/70 p-4 backdrop-blur-sm">
@@ -106,11 +123,7 @@ export function Paywall({ onUnlock, onClose }: Props) {
               answer for this question.
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-muted hover:text-text"
-            aria-label="Close"
-          >
+          <button onClick={onClose} className="text-muted hover:text-text" aria-label="Close">
             ✕
           </button>
         </div>
@@ -127,19 +140,16 @@ export function Paywall({ onUnlock, onClose }: Props) {
             <div className="mb-4 flex items-center justify-between rounded-xl border border-border bg-raised px-4 py-3 text-sm">
               <span className="text-muted">Your USDC balance</span>
               <span className="font-mono">
-                {typeof balance === "bigint" ? formatUsdc(balance) : "—"}
+                {balanceRaw !== null
+                  ? `${Number(formatUnits(balanceRaw, 18)).toFixed(2)} USDC`
+                  : "—"}
               </span>
             </div>
 
-            {!hasFunds && (
+            {knownInsufficient && (
               <p className="mb-3 text-sm text-danger">
                 Not enough USDC.{" "}
-                <a
-                  href={ARC_FAUCET}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-arcane underline-offset-2 hover:underline"
-                >
+                <a href={ARC_FAUCET} target="_blank" rel="noreferrer" className="text-arcane underline-offset-2 hover:underline">
                   Get testnet USDC
                 </a>
                 .
@@ -148,17 +158,8 @@ export function Paywall({ onUnlock, onClose }: Props) {
 
             {txHash && (
               <p className="mb-3 text-sm text-muted">
-                {phase === "verifying"
-                  ? "Verifying payment…"
-                  : isMining
-                    ? "Waiting for confirmation…"
-                    : "Submitted."}{" "}
-                <a
-                  href={explorerTx(txHash)}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-arcane underline-offset-2 hover:underline"
-                >
+                {phase === "verifying" ? "Verifying payment…" : "Submitted."}{" "}
+                <a href={explorerTx(txHash)} target="_blank" rel="noreferrer" className="text-arcane underline-offset-2 hover:underline">
                   View on explorer
                 </a>
               </p>
@@ -167,15 +168,11 @@ export function Paywall({ onUnlock, onClose }: Props) {
             {error && <p className="mb-3 text-sm text-danger">{error}</p>}
 
             <button
-              onClick={phase === "error" ? () => { reset(); setPhase("idle"); setError(null); } : pay}
-              disabled={!hasFunds || busy}
+              onClick={phase === "error" ? () => { setPhase("idle"); setError(null); } : pay}
+              disabled={knownInsufficient || busy}
               className="w-full rounded-xl bg-arcane px-4 py-3 font-medium text-ink shadow-glow transition hover:brightness-110 disabled:opacity-60"
             >
-              {busy
-                ? "Processing…"
-                : phase === "error"
-                  ? "Try again"
-                  : `Pay ${PRICE_USDC} USDC`}
+              {busy ? "Processing…" : phase === "error" ? "Try again" : `Pay ${PRICE_USDC} USDC`}
             </button>
           </>
         )}

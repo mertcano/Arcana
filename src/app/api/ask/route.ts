@@ -47,8 +47,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ answer: text, sources: uniqueSources(retrieved) });
   } catch (err) {
     const message =
-      err instanceof Error && err.message.includes("ANTHROPIC_API_KEY")
-        ? "Server is missing ANTHROPIC_API_KEY. Set it in your environment."
+      err instanceof Error && err.message.includes("LLM_API_KEY")
+        ? "Server is missing LLM_API_KEY. Set it in your environment."
         : "The assistant failed to answer. Please try again.";
     return NextResponse.json({ error: message }, { status: 500 });
   }

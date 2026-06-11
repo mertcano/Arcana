@@ -14,7 +14,7 @@ Arcana is a RAG-powered assistant for [Arc](https://docs.arc.io) (Circle's USDC-
 ## 1. Prerequisites
 
 - Node.js 18+ and npm
-- An **Anthropic API key** (https://console.anthropic.com)
+- A **free Groq API key** (https://console.groq.com — no credit card). Any OpenAI-compatible provider also works.
 - A browser wallet (e.g. MetaMask) with **Arc Testnet** added and some **testnet USDC** from https://faucet.circle.com
 - A wallet address to act as the **treasury** (receives payments) — can be your own testnet wallet
 
@@ -28,12 +28,12 @@ cp .env.example .env.local
 Edit `.env.local`:
 
 ```
-ANTHROPIC_API_KEY=sk-ant-...
+LLM_API_KEY=gsk_...                 # from console.groq.com
 UNLOCK_SECRET=<any long random string>
 NEXT_PUBLIC_TREASURY_ADDRESS=0xYourTestnetWallet
 ```
 
-The USDC address and price already have sensible defaults.
+`LLM_BASE_URL`, `LLM_MODEL`, the USDC address, and the price already have sensible defaults (Groq + Llama 3.3 70B). To use another OpenAI-compatible provider (OpenRouter, OpenAI, Together, etc.), set `LLM_BASE_URL` and `LLM_MODEL` accordingly.
 
 ## 3. Run locally
 
@@ -48,7 +48,7 @@ Open http://localhost:3000. Ask a free question. Click **Get a deep answer**, co
 1. Push this repo to GitHub.
 2. Import it in Vercel.
 3. Add the same environment variables in **Project Settings → Environment Variables**
-   (`ANTHROPIC_API_KEY`, `UNLOCK_SECRET`, `NEXT_PUBLIC_TREASURY_ADDRESS`, optionally `ANTHROPIC_MODEL` / `NEXT_PUBLIC_PRICE_USDC`).
+   (`LLM_API_KEY`, `UNLOCK_SECRET`, `NEXT_PUBLIC_TREASURY_ADDRESS`, optionally `LLM_MODEL` / `LLM_BASE_URL` / `NEXT_PUBLIC_PRICE_USDC`).
 4. Deploy. The serverless API routes run automatically.
 
 ## 5. How it works
